@@ -18,12 +18,13 @@ var docStyle = lipgloss.NewStyle().Margin(1, 2)
 type errMsg error
 
 type model struct {
-	spinner   spinner.Model
-	textinput textinput.Model
-	choice    int
-	chosen    bool
-	quitting  bool
-	err       error
+	spinner    spinner.Model
+	textinput  textinput.Model
+	choice     int
+	chosen     bool
+	quitting   bool
+	listOffset int
+	err        error
 }
 
 type task struct {
@@ -113,10 +114,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.choice >= len(rawItems) {
 				m.choice = len(rawItems) - 1
 			}
+			if m.choice >= size.height-8+m.listOffset && m.choice < len(rawItems)-1 {
+				m.listOffset += 1
+			}
 		case "k", "up":
 			m.choice--
 			if m.choice < 0 {
 				m.choice = 0
+			}
+			if m.choice < m.listOffset && m.listOffset > 0 {
+				m.listOffset -= 1
 			}
 		case "r", "backspace":
 			if m.choice == len(rawItems)-1 {
@@ -137,6 +144,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		size.width = msg.Width
 		size.height = msg.Height
+		m.listOffset = 0
+		m.choice = 0
 		break
 	case errMsg:
 		m.err = msg
@@ -187,13 +196,21 @@ func (m model) View() string {
 
 	str := "  " + titleForeground.Render("TODOs") + "\n\n"
 	str += m.textinput.View() + "\n\n"
-	for i := 0; i < len(rawItems); i++ {
+	for i := m.listOffset; i < len(rawItems)+m.listOffset; i++ {
+		if i-m.listOffset == size.height-7 {
+			break
+		}
 		str += choice(rawItems[i], i == m.choice)
 	}
 	for i := 0; i < size.height-len(rawItems)-7; i++ { // -7 because of the title, input field and margin
 		str += "\n"
 	}
-	str += "\n" + subtle("j/k, up/down: select") + dot + subtle("enter: choose") + dot + subtle("r: remove") + dot + subtle("q : quit")
+	if m.listOffset+(size.height-7) >= len(rawItems) {
+		str += "\n"
+	} else {
+		str += subtle("  ...\n")
+	}
+	str += subtle("j/k, up/down: select") + dot + subtle("enter: choose") + dot + subtle("r: remove") + dot + subtle("q : quit")
 
 	return str
 }
